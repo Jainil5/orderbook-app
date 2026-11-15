@@ -1,18 +1,18 @@
-"""AI narration over the analytics snapshot. The model receives only numbers
-that analytics.py already computed and must not introduce any of its own."""
-import os
+
 from datetime import datetime
 
 from dotenv import load_dotenv
-from langchain_ollama import ChatOllama
 
+from backend import db
+from backend.services.route_models import analytics
+from backend.services.model import MODEL, llm
 load_dotenv()
 
-MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b-cloud")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-# gpt-oss is a reasoning model: if thinking is left on it spends the whole token
-# budget thinking and returns empty content. Narration does not need chain of thought.
-THINKING = os.getenv("OLLAMA_THINKING", "false").lower() in ("1", "true", "yes")
+
+class AiUnavailable(Exception):
+    """Provider unreachable, model missing, or auth failed — the UI still shows
+    the numbers, which never depend on the model."""
+
 
 PREAMBLE = """You are the analyst for a small retail/food business using a local POS.
 Write in plain English for the owner, not for an engineer.
@@ -32,9 +32,6 @@ Margins and mix: gross margin, discounting, what sells, what underperforms.
 
 Stay under 200 words."""
 
-
-class AiUnavailable(Exception):
-    """Ollama unreachable, model missing, or auth needed — the UI still shows the numbers."""
 
 
 _SYMBOLS = {"INR": "₹", "USD": "$", "EUR": "€", "GBP": "£"}
@@ -83,14 +80,12 @@ def _facts(snapshot: dict, money) -> str:
 def narrate(snapshot: dict, currency: str = "INR") -> dict:
     symbol = _SYMBOLS.get(currency, currency + " ")
     money = lambda v: f"{symbol}{round(float(v), 2):,}"
-    prompt = f"{PREAMBLE}\n\nFACTS\n{_facts(snapshot, money)}\n\nWrite the three sections now."
+    prompt = f"{PREAMBLE}\n\nFACTS\n{_facts(snapshot, money)}\n\nWrite the two sections now."
     try:
-        # No num_predict cap: gpt-oss still emits thinking, and a cap that fits the
-        # thinking leaves no room for the answer, so content comes back empty.
-        llm = ChatOllama(model=MODEL, base_url=OLLAMA_URL, temperature=0.2,
-                         reasoning=THINKING, num_ctx=4096)
+        # No extra token cap here: the shared client already sizes the budget, so
+        # reasoning tokens and the answer always fit together.
         result = llm.invoke(prompt)
-    except Exception as exc:  # any Ollama/HTTP/auth failure
+    except Exception as exc:  # any provider/HTTP/auth failure
         raise AiUnavailable(str(exc)) from exc
 
     text = (result.content or "").replace("**", "").strip()
@@ -98,3 +93,10 @@ def narrate(snapshot: dict, currency: str = "INR") -> dict:
         raise AiUnavailable("model returned no text")
     return {"summary": text, "model": MODEL,
             "generated_at": datetime.now().isoformat(timespec="seconds")}
+
+
+def summarize(days: int = 30, date_from: str | None = None,
+              date_to: str | None = None) -> dict:
+    """Narrate the analytics snapshot for the requested window."""
+    snapshot = analytics.snapshot(days, date_from, date_to)
+    return narrate(snapshot, db.get("settings", 1)["currency"])

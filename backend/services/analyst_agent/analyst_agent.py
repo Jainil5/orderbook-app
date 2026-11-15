@@ -1,47 +1,9 @@
-"""
-OrderBook Analyst Agent
-=======================
+"""Single entry point for the agent: a question becomes a query_analyzer plan,
+which selects the business_intelligence metrics to compute, which the analyst
+LLM then narrates.
 
-Single entry point for OrderBook Business Intelligence.
-
-Flow:
-    Natural-language question
-        -> query_analyzer.analyze_query()
-        -> validated analytics plan
-        -> business_intelligence.fetch_business_data()
-        -> selected Pandas analytics functions
-        -> compact BI JSON
-        -> AI Sales Analyst
-        -> business-owner-friendly answer
-
-Install:
-    pip install langchain langchain-openai python-dotenv pandas numpy supabase
-
-Required .env:
-    SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-    SUPABASE_KEY=YOUR_SERVER_SIDE_KEY
-    BRAND_ID=your-authorized-brand-uuid
-    LLM_API_KEY=your-provider-api-key
-    LLM_BASE_URL=https://api.openai.com/v1
-    LLM_MODEL=your-model-name
-
-Optional:
-    BUSINESS_TIMEZONE=Asia/Kolkata
-
-Usage:
-    from analyst_agent import ask_business_analyst
-
-    result = ask_business_analyst(
-        "Which products sold best in the last 7 days compared with the previous week?",
-        brand_id=authorized_brand_id,
-    )
-    print(result["answer"])
-
-Security:
-    - brand_id must be resolved and authorized by your authenticated API.
-    - Never accept tenant identity from the LLM or trust a browser-supplied ID.
-    - Keep Supabase service-role keys on the server only.
-    - Do not expose this module's credentials or raw database data to clients.
+brand_id has to be resolved by the server — never taken from the browser or
+from the LLM. services/agent.py is the route adapter that supplies it.
 """
 
 from __future__ import annotations
@@ -52,18 +14,34 @@ from datetime import date, datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from model import llm, AI_SALES_ANALYST_NAME
 
-from query_analyzer import analyze_query
-from business_intelligence import (
-    analyze_sales,
-    analyze_products,
-    analyze_customers,
-    analyze_payments,
-    analyze_offers,
-    build_business_context,
-    fetch_business_data,
-)
+try:  # imported as part of the backend package
+    from ..model import llm, AI_SALES_ANALYST_NAME
+    from .query_analyzer import analyze_query
+    from .business_intelligence import (
+        analyze_sales,
+        analyze_products,
+        analyze_customers,
+        analyze_payments,
+        analyze_offers,
+        build_business_context,
+        fetch_business_data,
+    )
+except ImportError:  # loose script / tests with this folder on sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from model import llm, AI_SALES_ANALYST_NAME
+    from query_analyzer import analyze_query
+    from business_intelligence import (
+        analyze_sales,
+        analyze_products,
+        analyze_customers,
+        analyze_payments,
+        analyze_offers,
+        build_business_context,
+        fetch_business_data,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -386,12 +364,10 @@ def ask_business_analyst(
     brand_id: str,
     timezone: str | None = None,
     top_n: int = 10,
-    supabase_url: str | None = None,
-    supabase_key: str | None = None,
     run_analyst_llm: bool = True,
 ) -> dict:
     """
-    End-to-end OrderBook BI request.
+    End-to-end OrderBook BI request over the local CSV store.
 
     Returns:
         {
@@ -401,8 +377,8 @@ def ask_business_analyst(
           "answer": "..."
         }
 
-    `brand_id` must already be authorized by the calling backend.
-    Set run_analyst_llm=False to inspect/test classification and BI output
+    The app is single-brand; `brand_id` labels the context. Set
+    run_analyst_llm=False to inspect/test classification and BI output
     without making the final analyst model call.
     """
     if not isinstance(question, str) or not question.strip():
@@ -439,12 +415,8 @@ def ask_business_analyst(
             "answer": answer,
         }
 
-    # Stage 2: load this brand's data and run only the selected BI calculations.
-    data = fetch_business_data(
-        brand_id=brand_id,
-        supabase_url=supabase_url,
-        supabase_key=supabase_key,
-    )
+    # Stage 2: load this brand's CSV data and run only the selected BI calculations.
+    data = fetch_business_data(brand_id=brand_id)
     bi_json = execute_business_intelligence(
         data=data,
         plan=plan,
@@ -471,103 +443,29 @@ def ask_business_analyst(
 
 if __name__ == "__main__":
     import pprint
+    import sys
 
-    query = "Which products sold best in the last 7 days compared with the previous week?"
-    brand = os.getenv("BRAND_ID") or "default-brand"
+    query = " ".join(sys.argv[1:]) or (
+        "Which products sold best in the last 7 days compared with the previous week?"
+    )
+    brand = os.getenv("BRAND_ID") or "local"
 
     print("=" * 60)
     print(f"Question: {query}")
     print("=" * 60)
 
-    # 1. Analyze query plan
+    # 1. Classify the question into an analytics plan.
     plan = analyze_query(query)
     print("\n--- 1. Query Plan ---")
     pprint.pprint(plan)
 
-    # 2. Check if Supabase credentials are configured for live data fetch
-    supabase_configured = bool(
-        os.getenv("SUPABASE_URL")
-        and not os.getenv("SUPABASE_URL", "").startswith("https://YOUR_PROJECT")
-        and os.getenv("SUPABASE_KEY")
-    )
+    # 2. Load the local CSV data and compute only the requested analytics.
+    data = fetch_business_data(brand_id=brand)
+    bi_json = execute_business_intelligence(data=data, plan=plan, brand_id=brand)
+    print("\n--- 2. BI Computed JSON ---")
+    pprint.pprint(bi_json)
 
-    if supabase_configured:
-        print("\n--- Running End-to-End ask_business_analyst ---")
-        result = ask_business_analyst(query, brand_id=brand)
-        print("\n--- Final Answer ---")
-        print(result["answer"])
-    else:
-        print("\n[NOTE] Live Supabase credentials not set in .env.")
-        print("Executing BI pipeline using sample / mocked business data...")
-        import pandas as pd
-        sample_data = {
-            "orders": pd.DataFrame([
-                {
-                    "id": "ord-1",
-                    "order_status": "completed",
-                    "payment_status": "paid",
-                    "total_amount": 1200.0,
-                    "subtotal": 1200.0,
-                    "customer_id": "cust-1",
-                    "created_at": datetime.now().isoformat(),
-                },
-                {
-                    "id": "ord-2",
-                    "order_status": "completed",
-                    "payment_status": "paid",
-                    "total_amount": 850.0,
-                    "subtotal": 850.0,
-                    "customer_id": "cust-2",
-                    "created_at": datetime.now().isoformat(),
-                },
-            ]),
-            "order_items": pd.DataFrame([
-                {
-                    "id": "item-1",
-                    "order_id": "ord-1",
-                    "product_id": "prod-1",
-                    "product_name": "Signature Cold Brew",
-                    "quantity": 4,
-                    "unit_price": 300.0,
-                    "line_total": 1200.0,
-                    "created_at": datetime.now().isoformat(),
-                },
-                {
-                    "id": "item-2",
-                    "order_id": "ord-2",
-                    "product_id": "prod-2",
-                    "product_name": "Espresso Roast Beans",
-                    "quantity": 2,
-                    "unit_price": 425.0,
-                    "line_total": 850.0,
-                    "created_at": datetime.now().isoformat(),
-                },
-            ]),
-            "products": pd.DataFrame([
-                {"id": "prod-1", "product_name": "Signature Cold Brew", "cost_price": 100.0},
-                {"id": "prod-2", "product_name": "Espresso Roast Beans", "cost_price": 200.0},
-            ]),
-            "customers": pd.DataFrame([
-                {"id": "cust-1", "customer_name": "Alice Wonderland"},
-                {"id": "cust-2", "customer_name": "Bob Builder"},
-            ]),
-            "payments": pd.DataFrame(),
-            "offers": pd.DataFrame(),
-        }
-
-        bi_json = execute_business_intelligence(
-            data=sample_data,
-            plan=plan,
-            brand_id=brand,
-        )
-        print("\n--- 2. BI Computed JSON ---")
-        pprint.pprint(bi_json)
-
-        print("\n--- 3. AI Sales Analyst Final Answer ---")
-        answer = generate_business_answer(
-            question=query,
-            plan=plan,
-            bi_json=bi_json,
-        )
-        print(answer)
+    # 3. The analyst LLM explains the deterministic result.
+    print("\n--- 3. AI Sales Analyst Final Answer ---")
+    print(generate_business_answer(question=query, plan=plan, bi_json=bi_json))
 

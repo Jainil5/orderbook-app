@@ -1,6 +1,11 @@
 fastapi
 uvicorn[standard]
+python-dotenv
 langchain-core
 langchain-ollama
+langchain-openai
+langchain-nvidia-ai-endpoints
+pandas
+numpy
 pytest
 httpx

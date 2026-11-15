@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from backend.main import app
-from backend.services import ai, analyst
+from backend.services.main import app
+from backend.services.route_models import ai, analyst
 
 client = TestClient(app)
 
@@ -17,8 +17,8 @@ def test_suggestions():
 
 
 def test_chat_happy_path():
-    with patch.object(analyst, "ChatOllama") as Mock:
-        Mock.return_value.invoke.return_value.content = "Doing well — revenue is steady."
+    with patch.object(analyst, "llm") as Mock:
+        Mock.invoke.return_value.content = "Doing well — revenue is steady."
         res = client.post("/api/intelligence/chat", json={"message": "How are sales?"})
     assert res.status_code == 200
     body = res.json()
@@ -32,8 +32,8 @@ def test_chat_empty_message_422():
 
 
 def test_chat_ai_down_503():
-    with patch.object(analyst, "ChatOllama") as Mock:
-        Mock.return_value.invoke.side_effect = RuntimeError("down")
+    with patch.object(analyst, "llm") as Mock:
+        Mock.invoke.side_effect = RuntimeError("down")
         res = client.post("/api/intelligence/chat", json={"message": "How are sales?"})
     assert res.status_code == 503
     assert "AI unavailable" in res.json()["detail"]

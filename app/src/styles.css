@@ -1,215 +1,659 @@
-/* OrderBook local — warm espresso palette, tabular figures, depth on interaction. */
+/* OrderBook — Tailwind v4 over the Dark Botanical layer.
+ *
+ * Palette, type roles, radii and motion follow the "Dark Botanical / Lab Green"
+ * system: one dark green base, one saturated green accent, one warm sand
+ * accent, hairline borders everywhere and depth from glass cards rather than
+ * background bands.
+ *
+ * The legacy token NAMES (roast, gold, ink, parchment, rouge) are kept and
+ * retargeted, so the existing utility usages and both chart components pick up
+ * the new palette without markup churn.
+ */
+@import "tailwindcss";
+
+@theme {
+  /* ── Base field ────────────────────────────────────────────────
+     near-black with green in it, never pure black. */
+  --color-bg: #06120d;
+  --color-bg-deep: #040d09;
+  --color-surface: #0d2018;
+  --color-surface-2: #12291e;
+  --color-line: rgba(190, 235, 205, 0.14);
+  --color-line-2: rgba(190, 235, 205, 0.28);
+  --color-text: #eaf3ec;
+  --color-muted: #98b3a3;
+
+  /* ── Accents ──────────────────────────────────────────────────
+     leaf is the only saturated colour in the layout, so it always
+     reads as "action or emphasis". sand carries warnings and emphasis. */
+  --color-leaf: #5fd68a;
+  --color-leaf-deep: #2f9c5c;
+  --color-leaf-ink: #04210f;
+  --color-sand: #d2c391;
+  --color-sand-deep: #a89557;
+  --color-danger: #ff4d5a;
+
+  /* ── Retargeted legacy aliases ────────────────────────────────
+     ink used to be espresso body text on parchment; the roles simply
+     invert on a dark field. */
+  --color-ink: #eaf3ec;
+  --color-parchment: #06120d;
+  --color-roast: var(--color-leaf);
+  --color-roast-deep: var(--color-leaf-deep);
+  --color-gold: var(--color-sand);
+  --color-gold-deep: var(--color-sand-deep);
+  --color-rouge: var(--color-danger);
+
+  /* ── Type ─────────────────────────────────────────────────────
+     Bricolage = every headline, number and the wordmark, 600 or 800
+     only. Instrument Sans = body, links, nav, buttons, all-caps. */
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque",
+    "Iowan Old Style", Georgia, serif;
+  --font-sans: "Instrument Sans Variable", "Instrument Sans",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --fs-h1: clamp(27px, 3.1vw, 42px);
+  --fs-num: clamp(28px, 2.7vw, 36px);
+  --fs-label: 11px;
+
+  /* ── Radii: pills and soft superellipses, nothing square ────── */
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 26px;
+  --radius-3xl: 30px;
+  --radius-card: 22px;
+  --radius-field: 14px;
+
+  /* ── Glass: the inset top edge is what stops cards reading flat ─ */
+  --shadow-soft: 0 18px 40px -26px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(190, 235, 205, 0.06);
+  --shadow-lift: 0 34px 64px -28px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(190, 235, 205, 0.07);
+  --shadow-roast: 0 10px 30px -8px rgba(95, 214, 138, 0.45);
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 :root {
-  --ink: #17120f;
-  --ink-2: #2a211c;
-  --parchment: #f8f4ee;
-  --card: #fffdfa;
-  --line: #e5ddd0;
-  --muted: #7a6f64;
-  --amber: #b8541f;
-  --amber-deep: #8a3d13;
-  --gold: #d9a441;
-  --green: #2f6b4f;
-  --red: #9b2c2c;
-  --shadow-1: 0 1px 2px rgba(23, 18, 15, 0.06), 0 6px 16px rgba(23, 18, 15, 0.05);
-  --shadow-2: 0 2px 4px rgba(23, 18, 15, 0.08), 0 16px 32px rgba(23, 18, 15, 0.12);
-  --radius: 12px;
-  --display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+
+  --ob-surface: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  --ob-surface-muted: var(--color-surface-2);
+  --ob-border: var(--color-line);
+  --ob-border-strong: var(--color-line-2);
+  --ob-text: var(--color-text);
+  --ob-text-secondary: color-mix(in srgb, var(--color-text) 78%, var(--color-muted));
+  --ob-text-muted: var(--color-muted);
+  --ob-primary: var(--color-leaf);
+  --ob-accent: var(--color-sand);
+  --ob-focus: var(--color-leaf);
+  --ob-success: var(--color-leaf);
+  --ob-warning: var(--color-sand);
+  --ob-danger: var(--color-danger);
+  --ob-on-accent: var(--color-leaf-ink);
+
+  --ob-glow: rgba(95, 214, 138, 0.22);
+  --ob-glare-core: color-mix(in srgb, var(--color-sand) 70%, #ffffff);
+  --ob-gradient-primary: linear-gradient(120deg, #5fd68a, #7fe3a3, #5fd68a);
+  --ob-ambient-a: rgba(95, 214, 138, 0.07);
+  --ob-ambient-b: rgba(210, 195, 145, 0.05);
+  --ob-radius-md: 14px;
+  --ob-radius-lg: 22px;
+  --ob-shadow-sm: var(--shadow-soft);
+  --ob-shadow-md: var(--shadow-lift);
+  --ob-glass-blur: blur(18px) saturate(150%);
 }
 
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: var(--body);
-  font-variant-numeric: tabular-nums;
-  background: var(--parchment);
-  color: var(--ink);
-  -webkit-font-smoothing: antialiased;
-}
-
-h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; }
-h1 { font-size: 1.6rem; }
-h2 { font-size: 1.15rem; }
-h3 { font-size: 0.95rem; }
-a { color: inherit; text-decoration: none; }
-button { font: inherit; cursor: pointer; }
-
-.shell { display: grid; grid-template-columns: 216px 1fr; min-height: 100vh; }
-.sidebar { background: var(--ink); color: #efe7db; padding: 22px 16px; position: sticky; top: 0; height: 100vh; }
-.brand { font-family: var(--display); font-size: 1.3rem; letter-spacing: 0.01em; margin-bottom: 4px; }
-.brand-sub { color: #b3a695; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 26px; }
-.nav { display: flex; flex-direction: column; gap: 3px; }
-.nav a { padding: 11px 12px; border-radius: 9px; font-size: 0.92rem; color: #d8cfc2; transition: background 0.16s, transform 0.16s; }
-.nav a:hover { background: #241c17; transform: translateX(2px); }
-.nav a.active { background: var(--amber); color: #fff8f0; box-shadow: 0 6px 16px rgba(184, 84, 31, 0.35); }
-
-.main { padding: 26px 30px 64px; min-width: 0; }
-.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-.page-sub { color: var(--muted); font-size: 0.85rem; margin-top: 5px; }
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow-1);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-.card.lift:hover { transform: translateY(-3px) scale(1.006); box-shadow: var(--shadow-2); }
-.card + .card { margin-top: 14px; }
-.grid { display: grid; gap: 14px; }
-.grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.split { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
-
-.stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
-.stat-value { font-family: var(--display); font-size: 1.7rem; margin-top: 6px; }
-.delta { font-size: 0.78rem; margin-top: 4px; color: var(--muted); }
-.delta.up { color: var(--green); }
-.delta.down { color: var(--red); }
-
-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
-th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
-td { padding: 10px; border-bottom: 1px solid #f0ebe2; }
-tbody tr { transition: background 0.14s; }
-tbody tr:hover { background: #fbf7f0; }
-td.num, th.num { text-align: right; }
-
-.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.row.end { justify-content: flex-end; }
-.col { display: flex; flex-direction: column; gap: 6px; }
-.grow { flex: 1; min-width: 0; }
-
-input, select, textarea {
-  font: inherit; color: inherit; background: #fff;
-  border: 1px solid var(--line); border-radius: 9px;
-  padding: 10px 12px; min-height: 44px;
-}
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
-label { font-size: 0.78rem; color: var(--muted); }
-
-.btn {
-  border: 1px solid var(--line); background: #fff; border-radius: 9px;
-  padding: 10px 14px; min-height: 44px; font-weight: 600;
-  transition: transform 0.14s, box-shadow 0.14s, background 0.14s;
-}
-.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-1); }
-.btn.primary { background: var(--amber); border-color: var(--amber-deep); color: #fff8f0; }
-.btn.primary:hover { background: var(--amber-deep); }
-.btn.ghost { background: transparent; }
-.btn.small { min-height: 34px; padding: 5px 10px; font-size: 0.8rem; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-.badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; text-transform: capitalize; }
-.badge.open { background: #fdf0d5; color: #8a5a09; }
-.badge.confirmed { background: #e2ecfd; color: #1d4e89; }
-.badge.preparing { background: #ece2fd; color: #5b3a9b; }
-.badge.ready { background: #d9f2e6; color: var(--green); }
-.badge.delivered { background: #e6e6e6; color: #444; }
-.badge.cancelled { background: #fbe3e3; color: var(--red); }
-
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.tile {
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 14px; text-align: left; min-height: 96px;
-  display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s;
-  transform-style: preserve-3d;
-}
-.tile:hover { transform: perspective(600px) rotateX(6deg) translateY(-4px); box-shadow: var(--shadow-2); border-color: var(--gold); }
-.tile .name { font-weight: 600; font-size: 0.9rem; }
-.tile .price { font-family: var(--display); font-size: 1.05rem; color: var(--amber-deep); }
-.tile .cat { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
-
-.cart-line { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0ebe2; }
-.qty { display: inline-flex; align-items: center; gap: 8px; }
-.qty button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-weight: 700; }
-.totals { display: flex; flex-direction: column; gap: 6px; font-size: 0.86rem; }
-.totals .grand { font-family: var(--display); font-size: 1.3rem; border-top: 1px solid var(--line); padding-top: 8px; }
-
-.bars { display: flex; flex-direction: column; gap: 9px; }
-.bar-row { display: grid; grid-template-columns: 1fr 72px; gap: 10px; align-items: center; font-size: 0.8rem; }
-.bar-track { background: #efe8dd; border-radius: 999px; height: 9px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--gold), var(--amber)); transform-origin: left; animation: grow 0.5s ease; }
-@keyframes grow { from { transform: scaleX(0); } }
-
-.trend path.area { fill: rgba(184, 84, 31, 0.14); }
-.trend path.line { fill: none; stroke: var(--amber); stroke-width: 2; }
-.trend circle { fill: var(--amber-deep); }
-
-.empty { color: var(--muted); font-size: 0.85rem; padding: 14px 0; }
-.error { background: #fbe3e3; color: var(--red); border-radius: 9px; padding: 10px 12px; font-size: 0.84rem; }
-.notice { background: #e2ecfd; color: #1d4e89; border-radius: 9px; padding: 10px 12px; font-size: 0.84rem; }
-.summary { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.55; }
-.summary strong { font-family: var(--display); }
-.meta { font-size: 0.72rem; color: var(--muted); margin-top: 10px; }
-.mobile-nav { display: none; }
-
-@media (max-width: 900px) {
-  .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .grid.cols-3, .grid.cols-2, .split { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 720px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
-  .main { padding: 18px 14px 92px; }
-  .card { overflow-x: auto; }
-  table { min-width: 560px; }
-  .mobile-nav {
-    display: grid; grid-template-columns: repeat(7, 1fr);
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--ink); border-top: 1px solid #000; padding: 6px 4px;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 120px;
+    scroll-behavior: smooth;
   }
-  .mobile-nav a { color: #cbbfae; font-size: 0.66rem; text-align: center; padding: 8px 2px; border-radius: 8px; min-height: 44px; }
-  .mobile-nav a.active { color: var(--gold); font-weight: 700; }
-  h1 { font-size: 1.3rem; }
-  .stat-value { font-size: 1.35rem; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 520px at 100% -12%, var(--ob-ambient-a), transparent 58%),
+      radial-gradient(820px 460px at -6% 104%, var(--ob-ambient-b), transparent 52%),
+      var(--color-bg);
+    background-attachment: fixed;
+    color: var(--ob-text);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.6;
+    font-variant-numeric: tabular-nums;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Bricolage runs tight and big; the optical-size axis does the rest. */
+  h1, h2, h3, h4 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.12;
+  }
+
+  h1 {
+    font-size: var(--fs-h1);
+    line-height: 1.02;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  input, select, textarea {
+    font-family: inherit;
+  }
+
+  /* The only focus style in the system, always on the accent. */
+  *:focus-visible {
+    outline: 2px solid var(--color-leaf);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: rgba(95, 214, 138, 0.32);
+    color: var(--color-text);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(190, 235, 205, 0.2) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: rgba(190, 235, 205, 0.2) padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(95, 214, 138, 0.4) padding-box;
+  }
+}
+
+@layer components {
+  /* Fixed particle field behind the whole app; the content column sits at
+     z-1 so the chrome never paints over it. */
+  .ob-flowfield {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /* App chrome: the same glass recipe as the cards. The surface that carries
+     it picks its own hairline side (right for the rail, top for the tabs). */
+  .ob-shell {
+    background: color-mix(in srgb, var(--color-bg-deep) 78%, transparent);
+    backdrop-filter: var(--ob-glass-blur);
+    -webkit-backdrop-filter: var(--ob-glass-blur);
+  }
+
+  /* The signature uppercase micro-label: Instrument Sans, wide, leaf. */
+  .ob-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-leaf);
+    font-family: var(--font-sans);
+    font-size: var(--fs-label);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .ob-label-rule::after {
+    content: "";
+    flex: 1;
+    max-width: 120px;
+    height: 1px;
+    background: var(--color-leaf);
+    opacity: 0.35;
+  }
+
+  /* Money, prices and KPI figures are display type, not body type. */
+  .ob-num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Cursor-following highlight. CardGlow() writes --ob-glow-x/y and toggles
+     .ob-card-glow; this layer never intercepts pointer events. */
+  .ob-card {
+    position: relative;
+    background: var(--ob-surface);
+    backdrop-filter: var(--ob-glass-blur);
+    -webkit-backdrop-filter: var(--ob-glass-blur);
+    border: 1px solid var(--ob-border);
+    border-radius: var(--ob-radius-lg);
+    box-shadow: var(--ob-shadow-sm);
+    transition:
+      transform 0.28s var(--ease-out-expo),
+      box-shadow 0.28s ease,
+      border-color 0.25s ease;
+  }
+
+  .ob-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: radial-gradient(
+      280px circle at var(--ob-glow-x, 50%) var(--ob-glow-y, 50%),
+      var(--ob-glow),
+      transparent 65%
+    );
+  }
+
+  .ob-card-glow::after,
+  .ob-card:focus-within::after {
+    opacity: 0.85;
+  }
+
+  .ob-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lift);
+    border-color: color-mix(in srgb, var(--color-leaf) 38%, var(--ob-border));
+  }
+
+  /* Counter tiles lean toward the pointer; the handler only writes the two
+     custom properties, so the transform stays declarative. */
+  .ob-card.ob-tilt {
+    transform:
+      perspective(680px) rotateX(var(--ob-tilt-rx, 0deg))
+      rotateY(var(--ob-tilt-ry, 0deg)) translateY(var(--ob-tilt-lift, 0px))
+      scale(var(--ob-tilt-scale, 1));
+    transition:
+      transform 0.3s var(--ease-out-expo),
+      box-shadow 0.3s ease,
+      border-color 0.2s ease;
+  }
+
+  .ob-card.ob-tilt[data-tilting="true"] {
+    transition: box-shadow 0.3s ease, border-color 0.2s ease;
+  }
+
+  /* Aceternity glare: a swept highlight over the surface while hovered. */
+  .ob-glare {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transform-style: preserve-3d;
+  }
+
+  .ob-glare > .ob-glare-layer {
+    position: absolute;
+    inset: -40%;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 38%,
+      color-mix(in srgb, var(--color-leaf) 32%, transparent) 46%,
+      var(--ob-glare-core) 52%,
+      color-mix(in srgb, var(--color-leaf) 32%, transparent) 57%,
+      transparent 62%
+    );
+    transform: translateX(-60%);
+  }
+
+  .ob-glare:hover > .ob-glare-layer,
+  .ob-glare:focus-visible > .ob-glare-layer {
+    opacity: 1;
+    animation: ob-glare-sweep 0.9s var(--ease-out-expo);
+  }
+
+  .ob-press {
+    transition:
+      transform 0.18s var(--ease-out-expo),
+      background-color 0.18s ease,
+      box-shadow 0.18s ease,
+      opacity 0.18s ease;
+  }
+
+  .ob-press:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .ob-press:active:not(:disabled) {
+    transform: translateY(1px) scale(0.975);
+  }
+
+  /* Solid leaf fill with the ink cut out of it — the accent never gradients
+     into another hue, it only sheens within itself. */
+  .ob-btn-primary {
+    background: var(--ob-gradient-primary);
+    background-size: 200% 200%;
+    color: var(--ob-on-accent);
+    box-shadow: var(--shadow-roast);
+    transition:
+      transform 0.18s var(--ease-out-expo),
+      background-position 0.45s ease,
+      box-shadow 0.25s ease,
+      opacity 0.18s ease;
+  }
+
+  .ob-btn-primary:hover:not(:disabled) {
+    background-position: 100% 50%;
+    box-shadow: 0 14px 34px -10px rgba(95, 214, 138, 0.6);
+  }
+
+  .ob-input {
+    width: 100%;
+    border: 1px solid var(--ob-border);
+    border-radius: var(--ob-radius-md);
+    background: color-mix(in srgb, var(--color-bg-deep) 45%, var(--color-surface));
+    padding: 0.68rem 0.8rem;
+    color: var(--ob-text);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .ob-input::placeholder {
+    color: color-mix(in srgb, var(--ob-text-muted) 82%, transparent);
+  }
+
+  .ob-input:hover {
+    border-color: var(--ob-border-strong);
+  }
+
+  .ob-input:focus {
+    border-color: var(--color-leaf);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(95, 214, 138, 0.18);
+  }
+
+  select.ob-input {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ob-text-muted) 50%),
+      linear-gradient(135deg, var(--ob-text-muted) 50%, transparent 50%);
+    background-position: calc(100% - 17px) calc(50% + 1px), calc(100% - 12px) calc(50% + 1px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 2rem;
+  }
+
+  .ob-nav-link {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ob-nav-link svg {
+    transition: transform 0.25s var(--ease-out-expo);
+  }
+
+  .ob-nav-link:hover svg,
+  .ob-nav-link[data-active="true"] svg {
+    transform: translateX(2px) scale(1.08);
+  }
+
+  /* Money, dates and badges must never break across lines: a wrapped cell is
+     what makes a dense table read as broken. Wide tables scroll instead. */
+  .ob-table td,
+  .ob-table th {
+    white-space: nowrap;
+  }
+
+  .ob-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg-deep));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  .ob-table tbody tr {
+    transition: background 0.15s ease;
+  }
+
+  .ob-table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-leaf) 13%, transparent);
+  }
+
+  .ob-skeleton {
+    border-radius: var(--ob-radius-md);
+    background: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--color-surface) 70%, var(--color-bg-deep)) 30%,
+      color-mix(in srgb, var(--color-leaf) 12%, var(--color-surface)) 50%,
+      color-mix(in srgb, var(--color-surface) 70%, var(--color-bg-deep)) 70%
+    );
+    background-size: 220% 100%;
+    animation: ob-shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Ambient streaks — sand meteors. `backwards` matters: without a fill mode
+     each streak sits fully opaque and unrotated for its whole start delay,
+     which reads as a stray hairline rather than motion. */
+  .ob-meteor {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--ob-accent);
+    box-shadow: 0 0 8px var(--ob-glow);
+    animation: ob-meteor linear infinite backwards;
+  }
+
+  .ob-meteor::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 1px;
+    width: var(--ob-meteor-length, 90px);
+    height: 1.5px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to left,
+      color-mix(in srgb, var(--ob-accent) 65%, transparent),
+      transparent
+    );
+  }
+
+  .ob-grid-lines {
+    background-image:
+      linear-gradient(to right, rgba(190, 235, 205, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(190, 235, 205, 0.05) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(120% 120% at 50% 0%, #000 35%, transparent 78%);
+  }
+
+  .ob-grow-bar {
+    animation: ob-grow-bar 0.7s var(--ease-out-expo) both;
+    transform-origin: left;
+  }
+
+  .ob-tile {
+    border: 1px solid var(--ob-border);
+    border-radius: var(--ob-radius-md);
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--color-leaf) 5%, var(--color-surface)),
+        var(--color-surface));
+    box-shadow: var(--ob-shadow-sm);
+    transition: transform 0.16s var(--ease-out-expo), box-shadow 0.16s, border-color 0.25s ease;
+  }
+
+  .ob-tile:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--ob-shadow-md);
+    border-color: color-mix(in srgb, var(--color-leaf) 42%, var(--ob-border));
+  }
+
+  .ob-tile[data-in-cart="true"] {
+    border-color: var(--color-leaf);
+    background: color-mix(in srgb, var(--color-leaf) 13%, var(--color-surface));
+  }
+
+  .ob-mark {
+    background: var(--ob-gradient-primary);
+    background-size: 200% 200%;
+    color: var(--ob-on-accent);
+    animation: ob-sheen 9s ease infinite;
+  }
+
+  .ob-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Below `md` the grid is one track, so every card takes the whole row;
+     BentoCard brings the md:col-span-* utilities for the wide layout. */
+  .ob-bento-card {
+    grid-column: 1 / -1;
+  }
+
+  .ob-no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .ob-no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .ob-page-enter {
+    animation: ob-fade-in 0.45s var(--ease-out-expo);
+  }
+
+  /* `backwards` fills the stagger delay; `both` would keep the end transform
+     applied forever, which overrides any hover or tilt transform on the child. */
+  .ob-stagger > * {
+    animation: ob-rise 0.5s var(--ease-out-expo) backwards;
+  }
+
+  .ob-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .ob-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+  .ob-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+  .ob-stagger > *:nth-child(4) { animation-delay: 0.17s; }
+  .ob-stagger > *:nth-child(5) { animation-delay: 0.22s; }
+  .ob-stagger > *:nth-child(6) { animation-delay: 0.27s; }
+  .ob-stagger > *:nth-child(n + 7) { animation-delay: 0.32s; }
+}
+
+@keyframes ob-glare-sweep {
+  from { transform: translateX(-60%); }
+  to { transform: translateX(60%); }
+}
+
+@keyframes ob-shimmer {
+  from { background-position: 140% 0; }
+  to { background-position: -40% 0; }
+}
+
+@keyframes ob-meteor {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(35deg);
+    opacity: 0;
+  }
+  8% { opacity: 1; }
+  55% { opacity: 1; }
+  100% {
+    transform: translate3d(140px, 260px, 0) rotate(35deg);
+    opacity: 0;
+  }
+}
+
+@keyframes ob-grow-bar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes ob-sheen {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes ob-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ob-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .ob-card:hover,
+  .ob-tile:hover,
+  .ob-card.ob-tilt {
+    transform: none;
+    box-shadow: var(--ob-shadow-sm);
+    border-color: var(--ob-border);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card.lift:hover, .tile:hover, .btn:hover, .nav a:hover { transform: none; }
-  .bar-fill { animation: none; }
-}
+  html {
+    scroll-behavior: auto;
+  }
 
-/* Intelligence chat */
-.chat-page { display: flex; flex-direction: column; height: calc(100vh - 110px); }
-.chat-thread { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px 2px; }
-.chat-empty { margin: auto; text-align: center; color: var(--muted); }
-.chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; max-width: 560px; }
-.chip {
-  border: 1px solid var(--line); background: var(--card); color: var(--ink);
-  border-radius: 999px; padding: 10px 16px; min-height: 44px; font-size: 0.85rem;
-  box-shadow: var(--shadow-1); transition: border-color 0.16s, transform 0.16s;
-}
-.chip:hover { border-color: var(--amber); transform: translateY(-1px); }
-.chat-msg { display: flex; }
-.chat-msg.user { justify-content: flex-end; }
-.chat-bubble {
-  max-width: 85%; padding: 12px 16px; border-radius: var(--radius);
-  white-space: pre-wrap; box-shadow: var(--shadow-1); overflow-wrap: anywhere;
-}
-.chat-msg.user .chat-bubble { background: var(--amber); color: #fff8f0; }
-.chat-msg.assistant .chat-bubble { background: var(--card); border: 1px solid var(--line); }
-.chat-thinking { color: var(--muted); font-style: italic; }
-.chat-error { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.chat-input { display: flex; gap: 8px; padding-top: 12px; }
-.chat-input input {
-  flex: 1; min-height: 44px; padding: 10px 14px; font: inherit;
-  border: 1px solid var(--line); border-radius: 9px; background: var(--card); color: var(--ink);
-}
-.chat-input input:focus { outline: 2px solid var(--amber); outline-offset: -1px; }
-.chat-input .btn { min-height: 44px; min-width: 76px; }
-.chat-input .btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+  .ob-page-enter,
+  .ob-stagger > *,
+  .ob-skeleton,
+  .ob-mark,
+  .ob-grow-bar,
+  .ob-meteor,
+  .ob-glare:hover > .ob-glare-layer {
+    animation: none !important;
+  }
 
-@media (max-width: 720px) {
-  .chat-page { height: calc(100vh - 190px); }
-  .chat-bubble { max-width: 96%; }
-}
+  .ob-card::after {
+    transition: none;
+  }
 
-@media (prefers-reduced-motion: reduce) {
-  .chip:hover { transform: none; }
+  .ob-card:hover,
+  .ob-tile:hover,
+  .ob-press:hover:not(:disabled),
+  .ob-press:active:not(:disabled),
+  .ob-btn-primary:hover:not(:disabled),
+  .ob-nav-link:hover svg,
+  .ob-nav-link[data-active="true"] svg,
+  .ob-card.ob-tilt {
+    transform: none;
+  }
 }

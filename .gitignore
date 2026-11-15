@@ -1,7 +1,9 @@
 node_modules/
 dist/
-orderbook.db
+data/
 __pycache__/
 *.pyc
 .venv/
 .env
+.DS_Store
+.pytest_cache/

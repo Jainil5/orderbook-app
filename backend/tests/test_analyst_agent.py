@@ -252,8 +252,4 @@ class TestAskBusinessAnalyst:
         assert res["question"] == "What was my sales last week?"
         assert res["bi_json"]["status"] == "ok"
         assert res["answer"] == "Total sales for the week was 500."
-        mock_fetch.assert_called_once_with(
-            brand_id="brand-123",
-            supabase_url=None,
-            supabase_key=None,
-        )
+        mock_fetch.assert_called_once_with(brand_id="brand-123")

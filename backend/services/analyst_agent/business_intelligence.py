@@ -1,52 +1,10 @@
-"""
-OrderBook Business Intelligence Engine
-======================================
+"""Deterministic BI over the CSV store. Intentionally LLM-free: the analyst may
+only narrate the numbers computed here.
 
-This file is intentionally LLM-free: Pandas calculates metrics deterministically.
-The AI Sales Analyst is called only after this file returns its BI JSON.
-
-Install:
-    pip install pandas numpy supabase python-dotenv
-
-Environment (.env):
-    SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-    SUPABASE_KEY=YOUR_SERVER_SIDE_SUPABASE_KEY
-
-Usage:
-    from business_intelligence import fetch_and_build_context
-
-    context = fetch_and_build_context(
-        brand_id="YOUR_AUTHORIZED_BRAND_UUID",
-        start_date="2026-11-01",
-        end_date="2026-11-09",
-        timezone="Asia/Kolkata",
-    )
-
-    # This module returns deterministic metrics as a Python dict.
-    # analyst_agent.py passes the compact BI result to the shared LLM.
-
-You can also use the analysis functions directly with DataFrames:
-    result = analyze_sales(orders_df, start_date, end_date)
-    result = analyze_products(products_df, order_items_df, orders_df,
-                              start_date, end_date)
-    result = analyze_customers(customers_df, orders_df, order_items_df,
-                               start_date, end_date)
-
-Important:
-- This file does not execute custom SQL analytics queries. It fetches rows through
-  the Supabase client and performs analytics in Pandas.
-- `brand_id` MUST be resolved and authorized by your backend from the logged-in
-  user's membership. Never trust a brand_id supplied by the browser or the LLM.
-- Keep the Supabase secret/service-role key on the server only. Never put it in
-  a NEXT_PUBLIC_ variable or send it to the browser.
-- The default qualifying order statuses are configurable below. Confirm these
-  values match the exact status strings used by your application.
-- The current OrderBook schema described to this implementation has no dedicated
-  refunds, inventory-movement, or historical product-cost table. Therefore:
-    * revenue excludes tax and delivery and subtracts recorded order discounts;
-    * refunds cannot be deducted unless represented in your source data;
-    * product profit is an estimate using the current products.cost_price;
-    * low-selling products are NOT stock-availability adjusted.
+Definitions that are not obvious from the code:
+- revenue excludes tax and delivery, and subtracts recorded order discounts;
+- product profit uses the current products.cost_price, not the cost at sale time;
+- the schema keeps no refunds or inventory movement, so neither is deducted.
 """
 
 from __future__ import annotations
@@ -59,7 +17,14 @@ from typing import Any, Iterable
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from supabase import Client, create_client
+
+try:
+    from backend import db
+except ImportError:  # running as a loose script from inside this folder
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from backend import db
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +34,8 @@ from supabase import Client, create_client
 QUALIFYING_ORDER_STATUSES = {"completed"}
 QUALIFYING_PAYMENT_STATUSES = {"paid"}
 
+# Frames produced by fetch_business_data from the local CSV store.
 TABLES = ("orders", "order_items", "products", "customers", "payments", "offers")
-PAGE_SIZE = 1000
 
 
 # ---------------------------------------------------------------------------
@@ -672,72 +637,84 @@ def build_business_context(
 
 
 # ---------------------------------------------------------------------------
-# Supabase data loading
+# Local CSV data loading
 # ---------------------------------------------------------------------------
 
-def _fetch_all_rows(
-    client: Client,
-    table_name: str,
-    brand_id: str,
-    page_size: int = PAGE_SIZE,
-) -> pd.DataFrame:
-    """Fetch every page for one brand. No analytics SQL is executed."""
-    rows: list[dict] = []
-    offset = 0
-
-    while True:
-        response = (
-            client.table(table_name)
-            .select("*")
-            .eq("brand_id", brand_id)
-            .range(offset, offset + page_size - 1)
-            .execute()
-        )
-        batch = response.data or []
-        rows.extend(batch)
-
-        if len(batch) < page_size:
-            break
-        offset += page_size
-
-    return pd.DataFrame(rows)
+def _frame(rows: list[dict], cols: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 
-def fetch_business_data(
-    brand_id: str,
-    supabase_url: str | None = None,
-    supabase_key: str | None = None,
-) -> dict[str, pd.DataFrame]:
+def _local_to_utc(series: pd.Series, timezone: str) -> pd.Series:
+    """CSV timestamps are naive local time; make them UTC-aware for the analytics."""
+    parsed = pd.to_datetime(series, errors="coerce")
+    return (parsed.dt.tz_localize(timezone, ambiguous="NaT", nonexistent="NaT")
+            .dt.tz_convert("UTC"))
+
+
+def fetch_business_data(brand_id: str = "local") -> dict[str, pd.DataFrame]:
     """
-    Fetch OrderBook tables for a single brand.
+    Load the brand's tables from the local CSV store (data/*.csv) and shape
+    them into the frames the analytics functions expect.
 
-    `brand_id` must already have been authorized by your backend.
-    The key must be server-side. Prefer a user-scoped authenticated client
-    where practical; a service-role key bypasses RLS, so this function still
-    applies an explicit brand_id filter but your API must authorize it first.
+    The app is single-brand, so `brand_id` is kept for API compatibility and
+    recorded in the context, but no row filtering is needed. The local schema
+    has no payments/offers tables: payments are derived from orders.paid_amount
+    and offers come back empty.
     """
     load_dotenv()
-
-    url = supabase_url or os.getenv("SUPABASE_URL")
-    key = (
-        supabase_key
-        or os.getenv("SUPABASE_KEY")
-        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-    if not url:
-        raise ValueError("SUPABASE_URL is missing.")
-    if not key:
-        raise ValueError(
-            "SUPABASE_KEY or SUPABASE_SERVICE_ROLE_KEY is missing."
-        )
     if not brand_id:
         raise ValueError("brand_id is required.")
+    timezone = os.getenv("BUSINESS_TIMEZONE", "Asia/Kolkata")
 
-    client = create_client(url, key)
+    orders = _frame(db.read("orders"), db.columns("orders"))
+    # Local status flow -> the qualifying vocabulary used by the analytics.
+    orders["order_status"] = orders["status"].replace({"delivered": "completed"})
+    orders["payment_status"] = np.select(
+        [orders["paid_amount"] >= orders["total"], orders["paid_amount"] > 0],
+        ["paid", "partial"], default="unpaid",
+    )
+    orders["total_amount"] = orders["total"]
+    orders["amount_paid"] = orders["paid_amount"]
+    orders["tax_amount"] = orders["tax"]
+    orders["order_discount_amount"] = orders["discount"]
+    orders["item_discount_amount"] = 0.0
+    orders["delivery_fee"] = 0.0
+    orders["coupon_code"] = None
+    orders["created_at"] = _local_to_utc(orders["created_at"], timezone)
+
+    products = _frame(db.read("products"), db.columns("products"))
+    products["is_active"] = products["active"].astype(bool)
+
+    items = _frame(db.read("order_items"), db.columns("order_items"))
+    items["product_name"] = items["name"]
+    items["quantity"] = items["qty"]
+    items = items.merge(
+        products[["id", "category"]].rename(columns={"id": "product_id"}),
+        on="product_id", how="left",
+    )
+    items["category"] = items["category"].fillna("Uncategorized")
+
+    customers = _frame(db.read("customers"), db.columns("customers"))
+    customers["customer_name"] = customers["name"]
+
+    # One derived payment row per order that collected money.
+    collected = orders[(orders["amount_paid"] > 0)
+                       & (orders["order_status"] != "cancelled")]
+    payments = pd.DataFrame({
+        "order_id": collected["id"],
+        "amount": collected["amount_paid"],
+        "payment_method": collected["payment_method"],
+        "payment_status": "paid",
+        "paid_at": _local_to_utc(collected["updated_at"], timezone),
+    })
+
     return {
-        table: _fetch_all_rows(client, table, brand_id)
-        for table in TABLES
+        "orders": orders,
+        "order_items": items,
+        "products": products,
+        "customers": customers,
+        "payments": payments,
+        "offers": pd.DataFrame(),
     }
 
 
@@ -746,15 +723,9 @@ def fetch_and_build_context(
     start_date: str | date | datetime,
     end_date: str | date | datetime,
     timezone: str = "Asia/Kolkata",
-    supabase_url: str | None = None,
-    supabase_key: str | None = None,
 ) -> dict:
-    """Convenience function: fetch live Supabase data and build final JSON."""
-    data = fetch_business_data(
-        brand_id=brand_id,
-        supabase_url=supabase_url,
-        supabase_key=supabase_key,
-    )
+    """Convenience function: load the local CSV data and build the final JSON."""
+    data = fetch_business_data(brand_id=brand_id)
     return build_business_context(
         data=data,
         start_date=start_date,

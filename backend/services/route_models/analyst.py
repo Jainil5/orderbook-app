@@ -1,13 +1,15 @@
 """Conversational sales analyst. The model talks like a colleague chatting with
-the owner, but every figure it quotes comes from the SQL-computed FACTS block —
-it never queries the database or invents numbers itself.
-Concept ported from github.com/Jainil5/ai-sales-analyst, rewired to OrderBook
-data and local Ollama."""
+the owner, but every figure it quotes comes from the FACTS block that
+analytics.py computed with pandas — it never reads the store or invents numbers.
+Concept ported from github.com/Jainil5/ai-sales-analyst, rewired to OrderBook data."""
 from datetime import datetime
+from typing import Literal
 
-from langchain_ollama import ChatOllama
+from pydantic import BaseModel, Field, field_validator
 
-from backend.services import ai, analytics
+from backend import db
+from backend.services.route_models import ai, analytics
+from backend.services.model import llm
 
 SUGGESTIONS = [
     "How did sales perform this month compared to last?",
@@ -46,8 +48,6 @@ def answer(message: str, history: list[dict], currency: str = "INR", days: int =
               + (f"\n\nConversation so far:\n{turns}" if turns else "")
               + f"\n\nOwner's question: {message}")
     try:
-        llm = ChatOllama(model=ai.MODEL, base_url=ai.OLLAMA_URL, temperature=0.4,
-                         reasoning=ai.THINKING, num_ctx=4096)
         result = llm.invoke(prompt)
     except Exception as exc:
         raise ai.AiUnavailable(str(exc)) from exc
@@ -56,3 +56,33 @@ def answer(message: str, history: list[dict], currency: str = "INR", days: int =
         raise ai.AiUnavailable("model returned no text")
     return {"answer": text, "model": ai.MODEL,
             "generated_at": datetime.now().isoformat(timespec="seconds")}
+
+
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1)
+    history: list[ChatTurn] = []
+    days: int = Field(default=30, ge=1, le=3650)
+
+    @field_validator("message")
+    @classmethod
+    def message_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("message must not be blank")
+        return v.strip()
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    model: str
+    generated_at: str
+
+
+def chat(req: ChatRequest) -> dict:
+    currency = db.get("settings", 1)["currency"]
+    history = [t.model_dump() for t in req.history[-10:]]
+    return answer(req.message, history, currency, req.days)

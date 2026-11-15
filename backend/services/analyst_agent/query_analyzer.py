@@ -1,43 +1,9 @@
-"""
-OrderBook Query Analyzer
-========================
+"""Turn a business question into a validated analytics plan.
 
-Purpose:
-    Understand a business owner's natural-language question and convert it
-    into a validated analytics plan for business_intelligence.py.
-
-Install:
-    pip install langchain langchain-openai python-dotenv
-
-Environment (.env):
-    Configure the shared model in model.py and .env.
-
-Compatible with OpenAI-style chat-completions APIs, including providers that
-implement /v1/chat/completions and JSON response mode.
-
-Usage:
-    from query_analyzer import analyze_query
-
-    plan = analyze_query(
-        question="Which products sold best this month compared with last month?",
-        timezone="Asia/Kolkata",
-    )
-
-    print(plan)
-
-Architecture:
-    User question
-        -> LLM classifies intent, domains, metrics, filters, period type
-        -> Python resolves actual date boundaries
-        -> validated JSON analytics plan
-        -> business_intelligence.py executes the requested analysis
-        -> analyst LLM explains the results
-
-Security:
-    - Never accept brand_id or tenant authorization from the LLM.
-    - Resolve the user's brand_id and permissions in your authenticated backend.
-    - The LLM does not generate SQL and cannot execute database operations.
-    - Treat filters/entities extracted by the LLM as untrusted user input.
+The LLM only classifies intent, domains, metrics, filters and a period type;
+Python resolves the real date boundaries, so the model cannot invent a range.
+Its output stays untrusted input — the plan selects which metrics to compute and
+cannot reach the store on its own.
 """
 
 from __future__ import annotations
@@ -48,7 +14,13 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from model import llm
+try:  # imported as part of the backend package
+    from ..model import llm
+except ImportError:  # loose script / tests with this folder on sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from model import llm
 
 
 # ---------------------------------------------------------------------------
@@ -641,4 +613,8 @@ def normalize_classifier_output(
 
 
 if __name__ == "__main__":
-    qyery = ""
+    import pprint
+    import sys
+
+    question = " ".join(sys.argv[1:]) or "How were my sales last week?"
+    pprint.pprint(analyze_query(question))

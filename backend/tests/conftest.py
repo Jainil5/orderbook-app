@@ -1,6 +1,6 @@
 import pytest
 
-from backend.services import analytics
+from backend.services.route_models import analytics
 
 
 @pytest.fixture
