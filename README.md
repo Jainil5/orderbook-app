@@ -1,4 +1,4 @@
-# OrderBook local
+# OrderBook 
 
 A point-of-sale and order tracker for one business on one machine. Take an order at the counter,
 move it through the kitchen, collect payment, and ask questions of your own sales data — no
